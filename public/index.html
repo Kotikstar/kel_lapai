@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kelionės lapas</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+<div class="bg-white shadow-2xl rounded-2xl w-full max-w-5xl p-8">
+  <h1 class="text-3xl font-bold mb-8 text-center text-blue-800">Kelionės lapas (mėnesinis)</h1>
+
+  <form id="kelionesForma" class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <label for="pradzia" class="block font-semibold">Spidometro pradžia</label>
+        <input type="number" id="pradzia" name="pradzia" required class="w-full border border-gray-300 rounded px-4 py-2" />
+      </div>
+      <div>
+        <label for="pabaiga" class="block font-semibold">Spidometro pabaiga</label>
+        <input type="number" id="pabaiga" name="pabaiga" required class="w-full border border-gray-300 rounded px-4 py-2" />
+      </div>
+      <div>
+        <label for="likutis" class="block font-semibold">Kuro likutis nuo praeito mėnesio</label>
+        <input type="number" id="likutis" name="likutis" required class="w-full border border-gray-300 rounded px-4 py-2" />
+      </div>
+      <div>
+        <label for="kuras" class="block font-semibold">Kuro įsigyta (litrais)</label>
+        <input type="number" id="kuras" name="kuras" required class="w-full border border-gray-300 rounded px-4 py-2" />
+      </div>
+    </div>
+
+    <div class="mt-10">
+      <h2 class="text-lg font-semibold mb-2">Kelionių sąrašas</h2>
+      <div id="marsrutaiContainer" class="space-y-4"></div>
+      <button type="button" id="pridetiMarsruta" class="mt-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded shadow">+ Pridėti maršrutą</button>
+    </div>
+
+    <div class="flex justify-end mt-6">
+      <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded shadow">Generuoti PDF</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  const forma = document.getElementById("kelionesForma");
+  const prideti = document.getElementById("pridetiMarsruta");
+  const marsrutaiContainer = document.getElementById("marsrutaiContainer");
+
+  const kelioniuTikslai = [
+    "Korepetitoriaus paslaugos",
+    "Važiavimas į mokymo vietą",
+    "Darbo susitikimas",
+    "Kita"
+  ];
+
+  const kurtiMarsrutoForma = () => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "grid grid-cols-8 gap-4 items-center bg-gray-50 p-2 border rounded";
+
+    wrapper.innerHTML = `
+        <input type="date" name="data" required class="border rounded px-2 py-1" />
+        <input type="text" name="marsrutas" placeholder="Maršrutas" required class="border rounded px-2 py-1" />
+        <select name="tikslas" required class="border rounded px-2 py-1 tikslasSelect">
+          <option value="">Pasirinkti tikslą</option>
+          ${kelioniuTikslai.map(t => `<option value="${t}">${t}</option>`).join('')}
+        </select>
+        <input type="text" name="kitasTikslas" placeholder="Tikslas (jei kita)" class="border rounded px-2 py-1 hidden" />
+        <input type="time" name="isv" required class="border rounded px-2 py-1" />
+        <input type="time" name="griz" required class="border rounded px-2 py-1" />
+        <input type="number" name="km" required placeholder="km" class="border rounded px-2 py-1" />
+        <button type="button" class="text-red-600 font-bold text-xl hover:text-red-800" title="Pašalinti">×</button>
+      `;
+
+    wrapper.querySelector(".tikslasSelect").addEventListener("change", (e) => {
+      const input = wrapper.querySelector("input[name='kitasTikslas']");
+      input.classList.toggle("hidden", e.target.value !== "Kita");
+    });
+
+    wrapper.querySelector("button").addEventListener("click", () => {
+      wrapper.remove();
+    });
+
+    marsrutaiContainer.appendChild(wrapper);
+  };
+
+  prideti.addEventListener("click", () => {
+    kurtiMarsrutoForma();
+  });
+
+  forma.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      const duomenys = {
+        vairuotojas: "Jonas Petraitis",
+        automobilis: "Toyota Corolla, HGA 123",
+        odometroPradzia: +forma.pradzia.value,
+        odometroPabaiga: +forma.pabaiga.value,
+        likutisAnkstesnis: +forma.likutis.value,
+        kuroIsigyta: +forma.kuras.value,
+        sunaudojimoNorma: 12,
+        lentele: []
+      };
+
+      const blokai = marsrutaiContainer.querySelectorAll(".grid");
+      if (!blokai.length) return Swal.fire({ icon: 'warning', text: 'Pridėkite bent vieną maršrutą.' });
+
+      for (let blokas of blokai) {
+        const obj = {};
+        obj.data = blokas.querySelector("input[name='data']").value;
+        obj.marsrutas = blokas.querySelector("input[name='marsrutas']").value;
+        const pasirinkimas = blokas.querySelector("select[name='tikslas']").value;
+        const kita = blokas.querySelector("input[name='kitasTikslas']").value;
+        obj.tikslas = pasirinkimas === "Kita" ? kita : pasirinkimas;
+        obj.isvaziavimoLaikas = blokas.querySelector("input[name='isv']").value;
+        obj.grizimoLaikas = blokas.querySelector("input[name='griz']").value;
+        obj.km = +blokas.querySelector("input[name='km']").value;
+        duomenys.lentele.push(obj);
+      }
+
+      const atsakymas = await fetch("/generate-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(duomenys),
+      });
+
+      const rezultatas = await atsakymas.json();
+
+      if (rezultatas.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'PDF sugeneruotas!',
+          html: `<a href="/keliones_lapai/${rezultatas.filename}" target="_blank" class="text-blue-600 underline">Peržiūrėti PDF</a>`
+        });
+        forma.reset();
+        marsrutaiContainer.innerHTML = "";
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Klaida',
+        text: 'Nepavyko sugeneruoti PDF failo.'
+      });
+    }
+  });
+
+  kurtiMarsrutoForma();
+</script>
+</body>
+</html>
